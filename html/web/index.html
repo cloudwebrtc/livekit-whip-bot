@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <!-- Required meta tags -->
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
+    <!-- Bootstrap CSS -->
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css"
+        integrity="sha384-JcKb8q3iqJ61gNV9KGb8thSsNjpSL0n8PARn9HuZOnIxN0hoP+VmmDGMN5t9UJ0Z" crossorigin="anonymous" />
+    <style>
+        #remotes video {
+            width: 320px;
+        }
+    </style>
+    <!-- jQuery first, then Popper.js, then Bootstrap JS -->
+    <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"
+        integrity="sha384-DfXdz2htPH0lsSSs5nCTpuj/zy4C+OGpamoFVy38MVBnE+IbbVYUew+OrCXaRkfj"
+        crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/popper.js@1.16.1/dist/umd/popper.min.js"
+        integrity="sha384-9/reFTGAW83EW2RDu2S0VKaIzap3H66lZH81PoYlFhbGU+6BZp6G7niu735Sk7lN"
+        crossorigin="anonymous"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"
+        integrity="sha384-B4gt1jrGC7Jh4AgTPSdUtOBvfO8shuf57BaghqFfPlYxofvL8/KUEfYiJOMMV+rV"
+        crossorigin="anonymous"></script>
+    <script src="https://unpkg.com/uuid@latest/dist/umd/uuidv4.min.js"></script>
+    <title>WHIP to RTMP</title>
+</head>
+
+<body>
+    <nav class="navbar navbar-light bg-light border-bottom">
+        <h3>WHIP to RTMP</h3>
+    </nav>
+    <div class="container pt-4">
+        <div class="row">
+            <form>
+                URL: <input type="text" size="25" id="serverurl" name="serverurl" value="http://localhost:8080">
+                /(room) <input type="text" size="15" id="roomid" name="roomid" value="live">
+                /(stream) <input type="text" size="15" id="streamid" name="streamid" value="test01"><br><br>
+            </form>
+            <div class="col-12">
+                <button type="button" id="start-btn" class="btn btn-primary" onclick="start()">
+                    start
+                </button>
+                <button type="button" id="stop-btn" class="btn btn-primary" onclick="stop()">
+                    stop
+                </button>
+            </div>
+        </div>
+
+        <div class="row">
+            <div class="col-6 pt-2">
+                <span style="position: absolute; margin-left: 5px; margin-top: 5px"
+                    class="badge badge-primary">Local</span>
+                <video id="local-video" style="background-color: black" width="320" playsinline controls autoplay muted
+                    height="240"></video>
+                <div class="controls" style="display: none">
+                    <div class="row pt-3">
+                        <div class="col-3">
+                            <strong>Video</strong>
+                            <div class="radio">
+                                <label><input type="radio" onclick="controlLocalVideo(this)" value="true"
+                                        name="optlocalvideo" checked />
+                                    Unmute</label>
+                            </div>
+                            <div class="radio">
+                                <label><input type="radio" onclick="controlLocalVideo(this)" value="false"
+                                        name="optlocalvideo" />
+                                    Mute</label>
+                            </div>
+                        </div>
+                        <div class="col-3">
+                            <strong>Audio</strong>
+                            <div class="radio">
+                                <label><input type="radio" onclick="controlLocalAudio(this)" value="true"
+                                        name="optlocalaudio" checked />
+                                    Unmute</label>
+                            </div>
+                            <div class="radio">
+                                <label><input type="radio" onclick="controlLocalAudio(this)" value="false"
+                                        name="optlocalaudio" />
+                                    Mute</label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div id="remotes" class="col-6 pt-2">
+                <span style="position: absolute; margin-left: 5px; margin-top: 5px"
+                    class="badge badge-primary">Remotes</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Optional JavaScript -->
+    <script>
+        const localVideo = document.getElementById("local-video");
+        const remotesDiv = document.getElementById("remotes");
+
+        let roomid = document.getElementById("roomid").value;
+        let streamid = document.getElementById("streamid").value;
+        let serverurl = document.getElementById("serverurl").value;
+
+        var localStream;
+        var remoteStream;
+        var pc;
+        var streams = {};
+
+        const loadparams = () => {
+            roomid = document.getElementById("roomid").value;
+            streamid = document.getElementById("streamid").value;
+            serverurl = document.getElementById("serverurl").value;
+        }
+
+        const start = async () => {
+            loadparams();
+
+            let videoElement = document.getElementById('video_container_publish');
+            let remoteVideo = document.getElementById('video_container_echo');
+
+            const constraints = {
+                video: { width: { exact: 640 }, height: { exact: 480 } },
+                audio: true
+            }
+
+            localStream = await navigator.mediaDevices.getUserMedia(constraints);
+
+            localVideo.srcObject = localStream;
+
+            pc = new RTCPeerConnection();
+
+            pc.ontrack = function (ev) {
+                let track = ev.track;
+                let stream = ev.streams[0];
+                if (track.kind === "video") {
+                    track.onunmute = () => {
+                        if (streams[stream.id] == null) {
+                            var remoteVideo = document.createElement("video");
+                            remoteVideo.srcObject = stream;
+                            remoteVideo.autoplay = true;
+                            remotesDiv.appendChild(remoteVideo);
+                            remoteStream = stream;
+                            streams[stream.id] = remoteVideo;
+                        }
+                    };
+                }
+            }
+
+            pc.onicecandidate = async function (ev) {
+                if (ev.candidate != null) {
+                    let res = await fetch(serverurl + "/whip/" + roomid + "/" + streamid, {
+                        method: 'PATCH',
+                        headers: {
+                            'Content-Type': 'application/trickle-ice-sdpfrag'
+                        },
+                        body: ev.candidate.candidate
+                    })
+                    let ret = await res.text()
+                    console.log('PATCH: ret => ' + ret)
+                }
+            }
+
+            await pc.addTransceiver(localStream.getVideoTracks()[0], {
+                direction: "sendonly",
+                streams: [localStream],
+            });
+
+    
+            await pc.addTransceiver(localStream.getAudioTracks()[0], {
+                direction: "sendonly",
+                streams: [localStream],
+            });
+            
+
+            const offer = await pc.createOffer();
+            await pc.setLocalDescription(offer);
+
+            console.log(offer.sdp);
+
+            let res = await fetch(serverurl + "/whip/" + roomid + "/" + streamid, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/sdp'
+                },
+                body: pc.localDescription.sdp
+            })
+
+            let ret = await res.text()
+
+            console.log('POST: ret => ' + ret)
+
+            let answer = new RTCSessionDescription({
+                type: 'answer',
+                sdp: ret
+            })
+
+            await pc.setRemoteDescription(answer);
+        }
+
+        const stop = async () => {
+            let res = await fetch(serverurl + "/whip/" + roomid + "/" + streamid, {
+                method: 'DELETE',
+            })
+            let ret = await res.text();
+            console.log('DELETE: ret => ' + ret)
+            localStream.getTracks().forEach(function (track) {
+                track.stop();
+            });
+            pc.close();
+            remotesDiv.removeChild(streams[remoteStream.id]);
+            streams[remoteStream.id] = null;
+        };
+    </script>
+</body>
+
+</html>
