@@ -1,0 +1,23 @@
+[webrtc]
+# Single port, portrange will not work if you enable this
+singleport = 45670
+
+# Range of ports that ion accepts WebRTC traffic on
+# Format: [min, max]   and max - min >= 100
+# portrange = [5000, 5200]
+# if sfu behind nat, set iceserver
+# [[webrtc.iceserver]]
+# urls = ["stun:stun.stunprotocol.org:3478"]
+# [[webrtc.iceserver]]
+# urls = ["turn:turn.awsome.org:3478"]
+# username = "awsome"
+# credential = "awsome"
+
+[webrtc.candidates]
+#nat1to1 = ["169.254.199.87"]
+# icelite = true
+
+
+[log]
+# 0 - INFO 1 - DEBUG 2 - TRACE
+v = 1
