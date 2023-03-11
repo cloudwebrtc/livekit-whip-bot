@@ -13,6 +13,7 @@ import (
 
 	"github.com/cloudwebrtc/livekit-whip-go/pkg/util"
 	"github.com/cloudwebrtc/livekit-whip-go/pkg/whip"
+	lksdk "github.com/livekit/server-sdk-go"
 
 	"github.com/gorilla/mux"
 	"github.com/pion/rtcp"
@@ -25,14 +26,17 @@ type Config struct {
 }
 
 var (
-	conf     Config
-	file     = ""
-	addr     = ":8080"
-	cert     = ""
-	key      = ""
-	webRoot  = "html"
-	listLock sync.RWMutex
-	conns    = make(map[string]*whipState)
+	host      = "http://localhost:7880"
+	apiKey    = ""
+	apiSecret = ""
+	conf      Config
+	file      = ""
+	addr      = ":8081"
+	cert      = ""
+	key       = ""
+	webRoot   = "html"
+	listLock  sync.RWMutex
+	conns     = make(map[string]*whipState)
 )
 
 func addTrack(w *whipState, t *webrtc.TrackRemote) *webrtc.TrackLocalStaticRTP {
@@ -76,6 +80,9 @@ func showHelp() {
 	fmt.Println("      -bind {bind listen addr}")
 	fmt.Println("      -web {html root directory}")
 	fmt.Println("      -h (show help info)")
+	fmt.Println("      -host {livekit server host url}")
+	fmt.Println("      -livekit-key {livekit server api key}")
+	fmt.Println("      -livekit-secret {livekit server api secret}")
 }
 
 func load(file string) bool {
@@ -117,6 +124,9 @@ func main() {
 	flag.StringVar(&key, "key", "", "key file")
 	flag.StringVar(&addr, "addr", ":8080", "http listening address")
 	flag.StringVar(&webRoot, "web", "html", "html root directory")
+	flag.StringVar(&host, "host", "http://localhost:7880", "livekit server host url")
+	flag.StringVar(&apiKey, "livekit-key", "", "livekit server api key")
+	flag.StringVar(&apiSecret, "livekit-secret", "", "livekit server api secret")
 	help := flag.Bool("h", false, "help info")
 	flag.Parse()
 
@@ -130,6 +140,8 @@ func main() {
 	}
 
 	whip.Init(conf.Config)
+
+	rtcAgents := make(map[string]*lksdk.Room)
 
 	r := mux.NewRouter()
 
@@ -197,6 +209,22 @@ func main() {
 				pubTrack := addTrack(state, track)
 				defer removeTrack(state, pubTrack)
 
+				rtcAgent, ok := rtcAgents[roomId]
+				if !ok {
+					rtcAgent, err = createAgent(roomId, nil, "whip-bot")
+					if err != nil {
+						log.Println("failed to create agent", err)
+						return
+					}
+					log.Println("created rtc agent for room", roomId)
+					rtcAgents[roomId] = rtcAgent
+				}
+				if _, err := rtcAgent.LocalParticipant.PublishTrack(pubTrack, &lksdk.TrackPublicationOptions{Name: streamId}); err != nil {
+					log.Println("failed to publish rtc track", err)
+				} else {
+					log.Println("published rtc track", streamId)
+				}
+
 				buf := make([]byte, 1500)
 				for {
 					i, _, err := track.Read(buf)
@@ -208,6 +236,7 @@ func main() {
 						return
 					}
 				}
+
 			}
 		}
 
@@ -358,4 +387,17 @@ func main() {
 			log.Fatal("ListenAndServe: ", e)
 		}
 	}
+}
+
+func createAgent(roomName string, callback *lksdk.RoomCallback, name string) (*lksdk.Room, error) {
+	room, err := lksdk.ConnectToRoom(host, lksdk.ConnectInfo{
+		APIKey:              apiKey,
+		APISecret:           apiSecret,
+		RoomName:            roomName,
+		ParticipantIdentity: name,
+	}, callback)
+	if err != nil {
+		return nil, err
+	}
+	return room, nil
 }
