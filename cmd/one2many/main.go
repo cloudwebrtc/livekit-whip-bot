@@ -219,11 +219,22 @@ func main() {
 					log.Println("created rtc agent for room", roomId)
 					rtcAgents[roomId] = rtcAgent
 				}
-				if _, err := rtcAgent.LocalParticipant.PublishTrack(pubTrack, &lksdk.TrackPublicationOptions{Name: streamId}); err != nil {
+
+				var localTrackPublication *lksdk.LocalTrackPublication
+
+				if localTrackPublication, err = rtcAgent.LocalParticipant.PublishTrack(pubTrack, &lksdk.TrackPublicationOptions{Name: streamId}); err != nil {
 					log.Println("failed to publish rtc track", err)
 				} else {
 					log.Println("published rtc track", streamId)
 				}
+
+				defer func(sid string) {
+					if err := rtcAgent.LocalParticipant.UnpublishTrack(sid); err != nil {
+						log.Println("failed to unpublish ", sid, " rtc track", err)
+					} else {
+						log.Println("unpublished rtc track ", sid)
+					}
+				}(localTrackPublication.SID())
 
 				buf := make([]byte, 1500)
 				for {
