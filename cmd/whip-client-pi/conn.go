@@ -1,4 +1,4 @@
-package client
+package main
 
 import (
 	"bytes"
@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+
+	"github.com/cloudwebrtc/livekit-whip-go/pkg/client"
 
 	log "github.com/pion/ion-log"
 	"github.com/pion/mediadevices"
@@ -18,22 +20,23 @@ import (
 	// or you can also use openh264 for alternative h264 implementation
 	// "github.com/pion/mediadevices/pkg/codec/openh264"
 	// or if you use a raspberry pi like, you can use mmal for using its hardware encoder
-	//"github.com/pion/mediadevices/pkg/codec/mmal"
+	"github.com/pion/mediadevices/pkg/codec/mmal"
+
 	//"github.com/pion/mediadevices/pkg/codec/opus" // This is required to use opus audio encoder
-	"github.com/pion/mediadevices/pkg/codec/x264" // This is required to use h264 video encoder
+	//"github.com/pion/mediadevices/pkg/codec/x264" // This is required to use h264 video encoder
 
 	// Note: If you don't have a camera or microphone or your adapters are not supported,
 	//       you can always swap your adapters with our dummy adapters below.
 	// _ "github.com/pion/mediadevices/pkg/driver/videotest"
 	// _ "github.com/pion/mediadevices/pkg/driver/audiotest"
-	_ "github.com/pion/mediadevices/pkg/driver/camera"     // This is required to register camera adapter
-	_ "github.com/pion/mediadevices/pkg/driver/microphone" // This is required to register microphone adapter
+	_ "github.com/pion/mediadevices/pkg/driver/camera" // This is required to register camera adapter
+	//_ "github.com/pion/mediadevices/pkg/driver/microphone" // This is required to register microphone adapter
 )
 
 type WhipState struct {
 	httpClient  *http.Client
 	resourceUrl string
-	whipCon     *WHIPConn
+	whipCon     *client.WHIPConn
 }
 
 func (w *WhipState) Close() {
@@ -54,23 +57,15 @@ func (w *WhipState) Connect(whipServer string) error {
 	log.Infof("Publish to whip server: %s", whipServer)
 
 	// Create a new RTCPeerConnection
-	x264Params, err := x264.NewParams()
+	mmalParams, err := mmal.NewParams()
 	if err != nil {
 		panic(err)
 	}
 
-	x264Params.BitRate = 500_000 // 500kbps
-
-	/*
-		opusParams, err := opus.NewParams()
-		if err != nil {
-			panic(err)
-		}
-	*/
+	mmalParams.BitRate = 500_000 // 500kbps
 
 	codecSelector := mediadevices.NewCodecSelector(
-		mediadevices.WithVideoEncoders(&x264Params),
-		//mediadevices.WithAudioEncoders(&opusParams),
+		mediadevices.WithVideoEncoders(&mmalParams),
 	)
 
 	s, err := mediadevices.GetUserMedia(mediadevices.MediaStreamConstraints{
@@ -78,8 +73,6 @@ func (w *WhipState) Connect(whipServer string) error {
 			c.Width = prop.Int(640)
 			c.Height = prop.Int(480)
 		},
-		//Audio: func(c *mediadevices.MediaTrackConstraints) {
-		//},
 		Codec: codecSelector,
 	})
 	if err != nil {
@@ -87,19 +80,12 @@ func (w *WhipState) Connect(whipServer string) error {
 		return err
 	}
 
-	whipCon, err := NewWHIPConn()
+	whipCon, err := client.NewWHIPConn()
 	w.whipCon = whipCon
 	if err != nil {
 		log.Errorf("New WHIPConn failed %v", err)
 		return err
 	}
-	/*
-		_, err = whipCon.AddTrack(s.GetAudioTracks()[0])
-		if err != nil {
-			log.Errorf("whipConn.AddTrack (audioTrack) failed %v", err)
-			return err
-		}
-	*/
 
 	transceiver, err := whipCon.AddTrack(s.GetVideoTracks()[0])
 	if err != nil {
