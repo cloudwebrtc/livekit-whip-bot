@@ -9,6 +9,17 @@ import (
 	"github.com/pion/webrtc/v3"
 )
 
+type WHIPConfig struct {
+	HtmlRoot string `mapstructure:"html_root"`
+	Addr     string `mapstructure:"addr"`
+}
+
+type LiveKitServerConfig struct {
+	Server    string `mapstructure:"server"`
+	APIKey    string `mapstructure:"api_key"`
+	APISecret string `mapstructure:"api_secret"`
+}
+
 type Candidates struct {
 	IceLite    bool     `mapstructure:"icelite"`
 	NAT1To1IPs []string `mapstructure:"nat1to1"`
@@ -29,9 +40,16 @@ type WebRTCConfig struct {
 	Candidates    Candidates        `mapstructure:"candidates"`
 }
 
+type LogConfig struct {
+	Level int `mapstructure:"level"`
+}
+
 // Config for base SFU
 type Config struct {
-	WebRTC WebRTCConfig `mapstructure:"webrtc"`
+	WebRTC        WebRTCConfig        `mapstructure:"webrtc"`
+	WHIP          WHIPConfig          `mapstructure:"whip"`
+	LiveKitServer LiveKitServerConfig `mapstructure:"livekit"`
+	Log           LogConfig           `mapstructure:"log"`
 }
 
 var (
@@ -50,7 +68,7 @@ func Init(c Config) {
 	webrtcSettings = webrtc.SettingEngine{}
 
 	if c.WebRTC.ICESinglePort != 0 {
-		log.Print("Listen on ", "single-port: ", c.WebRTC.ICESinglePort)
+		log.Print("Listen ice on single-port: ", c.WebRTC.ICESinglePort)
 		udpListener, err := net.ListenUDP("udp", &net.UDPAddr{
 			IP:   net.IP{0, 0, 0, 0},
 			Port: c.WebRTC.ICESinglePort,

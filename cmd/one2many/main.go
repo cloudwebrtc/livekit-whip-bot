@@ -21,22 +21,16 @@ import (
 	"github.com/spf13/viper"
 )
 
-type Config struct {
-	whip.Config `mapstructure:",squash"`
-}
-
 var (
-	host      = "http://localhost:7880"
-	apiKey    = ""
-	apiSecret = ""
-	conf      Config
-	file      = ""
-	addr      = ":8081"
-	cert      = ""
-	key       = ""
-	webRoot   = "html"
-	listLock  sync.RWMutex
-	conns     = make(map[string]*whipState)
+	livekitServerAddr = "http://localhost:7880"
+	livekitAPIKey     = ""
+	livekitAPISecret  = ""
+	conf              whip.Config
+	cfgFile           = "config.toml"
+	whipBindAddr      = ""
+	whipWebAppRoot    = ""
+	listLock          sync.RWMutex
+	conns             = make(map[string]*whipState)
 )
 
 func addTrack(w *whipState, t *webrtc.TrackRemote) *webrtc.TrackLocalStaticRTP {
@@ -75,14 +69,12 @@ type whipState struct {
 func showHelp() {
 	fmt.Printf("Usage:%s {params}\n", os.Args[0])
 	fmt.Println("      -c {config file}")
-	fmt.Println("      -cert {cert file for https}")
-	fmt.Println("      -key {key file for https}")
-	fmt.Println("      -bind {bind listen addr}")
-	fmt.Println("      -web {html root directory}")
-	fmt.Println("      -h (show help info)")
-	fmt.Println("      -host {livekit server host url}")
+	fmt.Println("      -whip-bind-addr {whip bind listen addr}")
+	fmt.Println("      -whip-web-app-root {whip web app root directory}")
+	fmt.Println("      -livekit-server {livekit server host url}")
 	fmt.Println("      -livekit-key {livekit server api key}")
 	fmt.Println("      -livekit-secret {livekit server api secret}")
+	fmt.Println("      -h (show help info)")
 }
 
 func load(file string) bool {
@@ -119,18 +111,16 @@ func printWhipState() {
 }
 
 func main() {
-	flag.StringVar(&file, "c", "config.toml", "config file")
-	flag.StringVar(&cert, "cert", "", "cert file")
-	flag.StringVar(&key, "key", "", "key file")
-	flag.StringVar(&addr, "addr", ":8080", "http listening address")
-	flag.StringVar(&webRoot, "web", "html", "html root directory")
-	flag.StringVar(&host, "host", "http://localhost:7880", "livekit server host url")
-	flag.StringVar(&apiKey, "livekit-key", "", "livekit server api key")
-	flag.StringVar(&apiSecret, "livekit-secret", "", "livekit server api secret")
+	flag.StringVar(&cfgFile, "c", "config.toml", "config file")
+	flag.StringVar(&whipBindAddr, "whip-bind-addr", "", "http listening address")
+	flag.StringVar(&whipWebAppRoot, "whip-web-app-root", "", "html root directory for web server")
+	flag.StringVar(&livekitServerAddr, "livekit-server", "", "livekit server url, e.g. http://localhost:7880")
+	flag.StringVar(&livekitAPIKey, "livekit-key", "", "livekit server api key")
+	flag.StringVar(&livekitAPISecret, "livekit-secret", "", "livekit server api secret")
 	help := flag.Bool("h", false, "help info")
 	flag.Parse()
 
-	if !load(file) {
+	if !load(cfgFile) {
 		return
 	}
 
@@ -139,7 +129,33 @@ func main() {
 		return
 	}
 
-	whip.Init(conf.Config)
+	if whipBindAddr != "" {
+		conf.WHIP.Addr = whipBindAddr
+	}
+
+	if whipWebAppRoot != "" {
+		conf.WHIP.HtmlRoot = whipWebAppRoot
+	}
+
+	if livekitAPIKey != "" {
+		conf.LiveKitServer.APIKey = livekitAPIKey
+	}
+
+	if livekitAPISecret != "" {
+		conf.LiveKitServer.APISecret = livekitAPISecret
+	}
+
+	if livekitServerAddr != "" {
+		conf.LiveKitServer.Server = livekitServerAddr
+	}
+
+	if conf.LiveKitServer.Server == "" || conf.LiveKitServer.APIKey == "" || conf.LiveKitServer.APISecret == "" {
+		log.Print("livekit server address, api key and secret must be set\n")
+		showHelp()
+		return
+	}
+
+	whip.Init(conf)
 
 	rtcAgents := make(map[string]*lksdk.Room)
 
@@ -386,24 +402,24 @@ func main() {
 		json.NewEncoder(w).Encode(list)
 	}).Methods("GET")
 
-	r.PathPrefix("/").Handler(http.StripPrefix("/", http.FileServer(http.Dir(webRoot))))
+	r.PathPrefix("/").Handler(http.StripPrefix("/", http.FileServer(http.Dir(conf.WHIP.HtmlRoot))))
 	r.Headers("Access-Control-Allow-Origin", "*")
 
-	if cert != "" && key != "" {
-		if e := http.ListenAndServeTLS(addr, cert, key, r); e != nil {
-			log.Fatal("ListenAndServeTLS: ", e)
-		}
-	} else {
-		if e := http.ListenAndServe(addr, r); e != nil {
-			log.Fatal("ListenAndServe: ", e)
-		}
+	log.Print("Listen whip server on: ", conf.WHIP.Addr, " web root: ", conf.WHIP.HtmlRoot)
+	log.Print("LiveKit server: ", conf.LiveKitServer.Server, " api key: ", conf.LiveKitServer.APIKey)
+
+	log.Printf("Whip publish url prefix: /whip/publish/{room}/{stream}, e.g. http://%v/whip/publish/live/stream1", conf.WHIP.Addr)
+	log.Printf("Whip subscribe url prefix: /whip/subscribe/{room}/{stream}, e.g. http://%v/whip/subscribe/live/stream1", conf.WHIP.Addr)
+
+	if e := http.ListenAndServe(conf.WHIP.Addr, r); e != nil {
+		log.Fatal("ListenAndServe: ", e)
 	}
 }
 
 func createAgent(roomName string, callback *lksdk.RoomCallback, name string) (*lksdk.Room, error) {
-	room, err := lksdk.ConnectToRoom(host, lksdk.ConnectInfo{
-		APIKey:              apiKey,
-		APISecret:           apiSecret,
+	room, err := lksdk.ConnectToRoom(conf.LiveKitServer.Server, lksdk.ConnectInfo{
+		APIKey:              conf.LiveKitServer.APIKey,
+		APISecret:           conf.LiveKitServer.APISecret,
 		RoomName:            roomName,
 		ParticipantIdentity: name,
 	}, callback)

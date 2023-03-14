@@ -1,3 +1,17 @@
+[whip]
+# Port that whip listens on
+addr = ":8080"
+
+# web app root
+html_root = 'html'
+
+
+[livekit]
+server = 'http://localhost:7880'
+api_key = "APIrkjkQaVQJ5DE"
+api_secret = "TMRxvde2Y6eUTMIXBoLLdQoRJ4f1rL6uxbdZPDd1x3iB"
+
+
 [webrtc]
 # Single port, portrange will not work if you enable this
 singleport = 45670
@@ -20,4 +34,4 @@ singleport = 45670
 
 [log]
 # 0 - INFO 1 - DEBUG 2 - TRACE
-v = 1
+level = 1
