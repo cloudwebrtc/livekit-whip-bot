@@ -48,4 +48,4 @@ Note: Please replace `live` with the actual room name of your livekit server, re
 
 ### Screenshots
 
-
+<img width="500" height="348" src="https://raw.githubusercontent.com/cloudwebrtc/livekit-whip-bot/main/screenshots/livekit-whp-bot.jpg"/> 
