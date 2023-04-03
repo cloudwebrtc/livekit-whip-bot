@@ -37,7 +37,7 @@ cd livekit-whip-bot && go mod tidy
 go build -o livekit-whip-bot cmd/whip-client-pi/*.go
 ```
 
-Post the whip stream and you should be able to see your pi in the livekit room 📸️
+then publish the whip stream and you should be able to see your pi 📸️ in the livekit room
 
 ```bash
 ./livekit-whip-bot --url http://192.168.1.141:8080/whip/publish/live/my-pi-cam
