@@ -5,7 +5,7 @@ A WHIP tool library for pushing video streams from embedded boards to livekit-se
 ## Running the examples
 
 ```bash
-git https://github.com/cloudwebrtc/livekit-whip-bot
+git clone https://github.com/cloudwebrtc/livekit-whip-bot
 cd livekit-whip-bot
 ```
 
@@ -32,7 +32,7 @@ Install the golang development environment on your Raspberry Pi 3B/4B or zero, a
 
 ```bash
 # ssh pi@raspberrypi.local
-git https://github.com/cloudwebrtc/livekit-whip-bot
+git clone https://github.com/cloudwebrtc/livekit-whip-bot
 cd livekit-whip-bot && go mod tidy
 go build -o livekit-whip-bot cmd/whip-client-pi/*.go
 ```
