@@ -14,7 +14,7 @@ api_secret = "TMRxvde2Y6eUTMIXBoLLdQoRJ4f1rL6uxbdZPDd1x3iB"
 
 [webrtc]
 # Single port, portrange will not work if you enable this
-singleport = 45670
+# singleport = 45670
 
 # Range of ports that ion accepts WebRTC traffic on
 # Format: [min, max]   and max - min >= 100
